@@ -7,6 +7,8 @@ use App\Service\Node\AssigmentNode;
 use App\Service\Node\BinaryOpNode;
 use App\Service\Node\BlockNode;
 use App\Service\Node\FormNode;
+use App\Service\Node\FormStatementNode;
+use App\Service\Node\KeywordNode;
 use App\Service\Node\Node;
 use App\Service\Node\NumberNode;
 use App\Service\Node\StringNode;
@@ -16,10 +18,11 @@ use Exception;
 /*
  * Parser's grammar:
  *  program     -> statement*
- *  statement   -> expression | init
- *  init        -> assigment | global
- *  global      -> IDENTIFIER: (\t statement)*
+ *  statement   -> expression | assigment | form
+ *  form      -> IDENTIFIER: INDENT (form_statement)* DEDENT
+ *  form_statement -> assigment (identifier (,) )*
  *  callable    -> IDENTIFIER "(" IDENTIFIER* ")"
+ *  identifier  -> assigment | keyword
  *  assignment  -> IDENTIFIER "=" expression
  *  expression  -> term ((+ | -) term)*
  *  term        -> factor ((* | /) factor)*
@@ -76,7 +79,16 @@ class ASTParser
     {
         $node = new VariableNode($this->curr->value);
         $this->eat(TokenType::IDENTIFIER);
+
+        if ($this->curr->type === TokenType::NEWLINE) {
+            return new AssigmentNode($node, null);
+        } elseif ($this->curr->type === TokenType::COMMA) {
+            $this->eat(TokenType::COMMA);
+            return new AssigmentNode($node, null);
+        }
+
         $this->eat(TokenType::EQUALS);
+
         return new AssigmentNode($node, $this->expression());
     }
 
@@ -87,7 +99,7 @@ class ASTParser
     {
         $this->eat(TokenType::FORM);
 
-        $node = new VariableNode($this->curr->value);
+        $node = new KeywordNode($this->curr->value);
         $this->eat(TokenType::IDENTIFIER);
         $this->eat(TokenType::COLON);
 
@@ -96,13 +108,30 @@ class ASTParser
 
         $statements = [];
 
-        while ($this->curr && $this->curr->type !== TokenType::DEDENT) {
-            $statements[] = $this->statement();
+        while ($this->curr !== null && $this->curr->type !== TokenType::DEDENT) {
+            $statements[] = $this->formStatement();
             if ($this->curr) $this->eat(TokenType::NEWLINE);
         }
+        if ($this->curr !== null) $this->eat(TokenType::DEDENT);
+
         $block = new BlockNode($statements);
 
         return new FormNode($node, $block);
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function formStatement(): FormStatementNode
+    {
+        $node = $this->assigment();
+
+        $statements = [];
+        while ($this->curr !== null && $this->curr !== TokenType::NEWLINE) {
+            $statements[] = $this->statement();
+        }
+
+        return new FormStatementNode($node, $statements);
     }
 
     /**
@@ -170,7 +199,7 @@ class ASTParser
      */
     private function eat(TokenType $tokenType): void
     {
-        if ($this->curr && $this->curr->type === $tokenType) {
+        if ($this->curr !== null && $this->curr->type === $tokenType) {
             $this->curr = $this->lexer->nextToken();
         } else {
             throw new Exception("Expected " . $tokenType->name . ", but received: " . $this->curr->type->name);

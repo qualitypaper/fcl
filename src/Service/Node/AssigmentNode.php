@@ -6,7 +6,7 @@ use App\Service\Node\Node;
 
 class AssigmentNode extends Node
 {
-    public function __construct(public VariableNode $variable, public Node $expression)
+    public function __construct(public VariableNode | KeywordNode $variable, public ?Node $expression)
     {
 
     }

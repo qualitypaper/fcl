@@ -53,20 +53,10 @@ class ASTLexer
                 return array_shift($this->tokenBuffer);
             }
 
-            $parsedToken = match ($char) {
-                "+" => new Token(TokenType::PLUS),
-                "-" => new Token(TokenType::MINUS),
-                "(" => new Token(TokenType::LPAREN),
-                ")" => new Token(TokenType::RPAREN),
-                "*" => new Token(TokenType::MUL),
-                "/" => new Token(TokenType::DIV),
-                ";" => new Token(TokenType::SEMICOLON),
-                ":" => new Token(TokenType::COLON),
-                "=" => new Token(TokenType::EQUALS),
-                default => null
-            };
+            $tokenType = TokenType::tryFrom($char);
 
-            if ($parsedToken != null) {
+            if ($tokenType != null) {
+                $parsedToken = new Token($tokenType);
                 $this->logger->info("Parsed token: " . $parsedToken);
                 $this->advance();
                 return $parsedToken;
@@ -86,11 +76,11 @@ class ASTLexer
             };
 
             if ($parsedToken != null) {
-                $this->logger->info("Parsed token: " . $parsedToken);
+                $this->logger->info("Parsed token: $parsedToken");
                 return $parsedToken;
             }
 
-            throw new Exception("Unexpected token: " . $char);
+            throw new Exception("Unexpected token: $char");
         }
 
         return null;
@@ -126,27 +116,38 @@ class ASTLexer
 
     private function parseNumber(): int
     {
-        $token = "";
+        $tokenBytes = [];
 
         while (
             $this->isInBounds() &&
             ctype_digit($this->peek())
         ) {
-            $token .= $this->next();
+            $tokenBytes[] = $this->next();
         }
-        return (int)$token;
+
+        $number = 0;
+        $powerOfTen = 1;
+
+        for ($i = 0; $i < count($tokenBytes); $i++) {
+            $number += $powerOfTen * $tokenBytes[$i];
+            $powerOfTen *= 10;
+        }
+
+        return $number;
     }
 
     private function parseIdentifier(): string
     {
-        $token = "";
+        $tokenBytes = [];
+
         while (
             $this->isInBounds() &&
             self::isIdentifierChar($this->peek())
         ) {
-            $token .= $this->next();
+            $tokenBytes[] = $this->next();
         }
-        return $token;
+
+        return implode("", $tokenBytes);
     }
 
 
@@ -154,13 +155,18 @@ class ASTLexer
     {
         $identifier = $this->parseIdentifier();
 
-        return match ($identifier) {
-            strtolower(TokenType::FORM->name) => new Token(TokenType::FORM, strtolower(TokenType::FORM->name)),
-            default => new Token(
-                TokenType::IDENTIFIER,
-                $identifier
-            ),
-        };
+        $tokenType = TokenType::tryFrom($identifier);
+
+        if ($tokenType !== null) {
+            if ($tokenType === TokenType::FORM) {
+                return new Token(TokenType::FORM, $identifier);
+            } elseif ($tokenType->isKeyword()) {
+                return new Token($tokenType, $identifier);
+            }
+        }
+
+
+        return new Token(TokenType::IDENTIFIER, $identifier);
     }
 
     private static function isIdentifierChar(string $char): bool
@@ -171,25 +177,15 @@ class ASTLexer
     private function parseString(): string
     {
         $this->logger->info("Entered parseString()");
-        $token = "";
+        $tokenBytes = [];
         $this->advance();
 
         while ($this->isInBounds() && $this->peek() != "\"") {
-            $token .= $this->next();
+            $tokenBytes[] = $this->next();
         }
         $this->advance();
 
-        return $token;
-    }
-
-    private function skipToNextToken(): void
-    {
-        while (
-            $this->isInBounds() &&
-            ctype_space($this->peek())
-        ) {
-            $this->advance();
-        }
+        return implode("", $tokenBytes);
     }
 
     private function next(): string
@@ -213,7 +209,7 @@ class ASTLexer
         $this->position++;
     }
 
-    private function isInBounds()
+    private function isInBounds(): bool
     {
         return $this->position < strlen($this->sourceCode);
     }
