@@ -29,11 +29,21 @@ enum TokenType: string
     case COLON = ':';
     case COMMA = ',';
 
-    public const array KEYWORDS = [
-        self::MAX_SIZE, self::REQUIRED
+    public const array NUMBER_KEYWORDS = [
+        self::MAX_SIZE
     ];
 
-    public function isKeyword() {
-        return in_array($this, self::KEYWORDS);
+    public const array BOOLEAN_KEYWORDS = [
+        self::REQUIRED
+    ];
+
+    public function isNumberKeyword(): bool
+    {
+        return in_array($this, self::NUMBER_KEYWORDS);
+    }
+
+    public function isBooleanKeyword(): bool
+    {
+        return in_array($this, self::BOOLEAN_KEYWORDS);
     }
 }

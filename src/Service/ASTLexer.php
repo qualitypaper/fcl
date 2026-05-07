@@ -160,7 +160,7 @@ class ASTLexer
         if ($tokenType !== null) {
             if ($tokenType === TokenType::FORM) {
                 return new Token(TokenType::FORM, $identifier);
-            } elseif ($tokenType->isKeyword()) {
+            } elseif ($tokenType->isNumberKeyword() || $tokenType->isBooleanKeyword()) {
                 return new Token($tokenType, $identifier);
             }
         }

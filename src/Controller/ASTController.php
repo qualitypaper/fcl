@@ -25,7 +25,7 @@ class ASTController extends AbstractController
     {
         $text = $request->getContent();
         $this->lexer->setSourceCode($text);
-        $parser = new ASTParser($this->lexer);
+        $parser = new ASTParser($this->lexer, $logger);
         $node = $parser->parse();
 
         $logger->info("Node: " . implode(" , ", $node));
